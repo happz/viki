@@ -88,7 +88,9 @@ class VikiSlaveChat(LineReceiver):
   def connectionMade(self):
     VikiSlaveFactory.slaves.append(self)
 
-    self.send_reply('')
+    for i in range(0, 80):
+      self.send_reply('')
+
     self.send_reply(self.msgpool.get_message())
     self.send_reply('')
     self.send_reply('ROBCO INDUSTRIES UNIFIED OPERATING SYSTEM')
