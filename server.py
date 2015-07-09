@@ -1,6 +1,8 @@
 import functools
 import os
+import re
 import random
+import time
 
 from twisted.internet.protocol import Factory
 from twisted.protocols.basic import LineReceiver
@@ -24,6 +26,38 @@ class MessagePool(object):
 
   def get_message(self):
     return random.choice(self.messages)
+
+class QAPool(object):
+  def __init__(self, filepath):
+    self.messages = {}
+
+    with open(filepath, 'r') as f:
+      pattern = None
+      replies = None
+
+      for line in f:
+        line = line.strip()
+
+        if not line:
+          self.messages[pattern] = replies
+          pattern = None
+
+        elif pattern is None:
+          pattern = re.compile(line, re.I)
+          replies = []
+
+        else:
+          replies.append(line)
+
+  def get_message(self, line):
+    for pattern, replies in self.messages.iteritems():
+      if pattern.match(line) is None:
+        continue
+
+      return random.choice(replies)
+
+    else:
+      return None
 
 class Chatter(object):
   def __init__(self):
@@ -71,9 +105,10 @@ class VikiMasterChat(LineReceiver):
       slave.send_reply(line)
 
 class VikiSlaveChat(LineReceiver):
-  def __init__(self, chatbot, msgpool):
+  def __init__(self, chatbot, msgpool, qapool):
     self.chatbot = chatbot
     self.msgpool = msgpool
+    self.qapool = qapool
 
     self.last_message = None
 
@@ -116,6 +151,13 @@ class VikiSlaveChat(LineReceiver):
         master.send_reply(line)
 
     else:
+      time.sleep(3)
+
+      reply = self.qapool.get_message(line)
+      if reply is not None:
+        self.send_reply(reply)
+        return
+
       reply = self.chatbot.reply(line)
 
       self.chatbot.learn(self.last_message)
@@ -135,9 +177,10 @@ class VikiSlaveFactory(Factory):
   def __init__(self):
     self.chatbot = Chatter()
     self.msgpool = MessagePool(os.getcwd() + '/messages.txt')
+    self.qapool = QAPool(os.getcwd() + '/qa.txt')
 
   def buildProtocol(self, addr):
-    return VikiSlaveChat(self.chatbot, self.msgpool)
+    return VikiSlaveChat(self.chatbot, self.msgpool, self.qapool)
 
 reactor.listenTCP(8123, VikiSlaveFactory())
 reactor.listenTCP(8124, VikiMasterFactory())
