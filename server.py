@@ -94,12 +94,17 @@ class VikiMasterChat(LineReceiver):
     log.info('master disconnected!')
 
   def lineReceived(self, line):
-    log.debug('master: master says: "%s"' % line)
-
+    line = ''.join([c for c in line if ord(c) >= 32 and ord(c) <= 127])
     line = line.strip()
+
     if not line:
       log.debug('master: line was empty, ignore')
       return
+
+    if line[0] == "'":
+      line = line[1:]
+
+    log.debug('master: master says: "%s"' % line)
 
     for slave in VikiSlaveFactory.slaves:
       slave.send_reply(line)
